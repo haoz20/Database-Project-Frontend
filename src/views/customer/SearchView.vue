@@ -155,19 +155,27 @@ export default {
         async fetchPhotographers() {
             try {
                 const response = await axios.get("http://localhost:8080/api/photographers");
-                // Map the response so that availableToWorkIn becomes availableLocations and category becomes categories (array)
                 this.photographers = response.data.map(photographer => ({
                     ...photographer,
-                    availableLocations: photographer.availableToWorkIn || [],
-                    categories: Array.isArray(photographer.category)
-                        ? photographer.category
-                        : photographer.category.split(", ")
+                    // If availableToWorkIn is not null, use it. If it's a string, split by comma; otherwise, use it as is.
+                    availableLocations: photographer.availableToWorkIn
+                        ? (Array.isArray(photographer.availableToWorkIn)
+                            ? photographer.availableToWorkIn
+                            : photographer.availableToWorkIn.split(", "))
+                        : [],
+                    // Do the same for category
+                    categories: photographer.category
+                        ? (Array.isArray(photographer.category)
+                            ? photographer.category
+                            : photographer.category.split(", "))
+                        : []
                 }));
                 console.log("Fetched photographers:", this.photographers);
             } catch (error) {
                 console.error("Error fetching photographers:", error);
             }
-        },
+        }
+        ,
         filterResults() {
             this.currentPage = 1;
         },
@@ -197,7 +205,7 @@ export default {
                 alert("Booking confirmed!");
                 this.closeModals();
             } catch (error) {
-                
+
                 console.error("Error booking photographer:", error);
                 alert("Failed to create booking.");
             }
