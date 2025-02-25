@@ -5,9 +5,9 @@
       <input v-model="searchQuery" type="text" placeholder="Search by name, email, or ID" class="search-input" />
       <button @click="searchUsers">Search</button>
       <button @click="filterUsers('All')">All</button>
-      <button @click="filterUsers('Customer')">Customers</button>
-      <button @click="filterUsers('Photographer')">Photographers</button>
-      <button @click="filterUsers('Admin')">Admins</button>
+      <button @click="filterUsers('CUSTOMER')">Customers</button>
+      <button @click="filterUsers('PHOTOGRAPHER')">Photographers</button>
+      <button @click="filterUsers('ADMIN')">Admins</button>
     </div>
     <!-- Users Table -->
     <table>
@@ -75,9 +75,9 @@
           <div class="edit-form-group">
             <label for="editRole" class="edit-label">Role:</label>
             <select id="editRole" v-model="editingUser.role" class="edit-select" required>
-              <option value="Customer">Customer</option>
-              <option value="Photographer">Photographer</option>
-              <option value="Admin">Admin</option>
+              <option value="CUSTOMER">Customer</option>
+              <option value="PHOTOGRAPHER">Photographer</option>
+              <option value="ADMIN">Admin</option>
             </select>
           </div>
 
@@ -89,37 +89,34 @@
         </form>
       </div>
     </div>
-  </div>
-  <!-- Delete Modal Window -->
-  <div v-if="deletingUser" class="delete-modal-overlay" @click="closeDeleteModal">
-    <div class="delete-modal-content" @click.stop>
-      <h2 class="delete-title">Delete User</h2>
-      <p>Do you want to permanently delete this user?</p>
-      <div class="delete-modal-buttons">
-        <button type="button" class="btn btn-confirm" @click="confirmDelete">Confirm</button>
-        <button type="button" class="btn btn-cancel" @click="closeDeleteModal">Cancel</button>
+    <!-- Delete Modal Window -->
+    <div v-if="deletingUser" class="delete-modal-overlay" @click="closeDeleteModal">
+      <div class="delete-modal-content" @click.stop>
+        <h2 class="delete-title">Delete User</h2>
+        <p>Do you want to permanently delete this user?</p>
+        <div class="delete-modal-buttons">
+          <button type="button" class="btn btn-confirm" @click="confirmDelete">Confirm</button>
+          <button type="button" class="btn btn-cancel" @click="closeDeleteModal">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import axios from "axios";
 export default {
   name: "UsersManagement",
   data() {
     return {
-      users: [
-        { id: 1, name: "Somchai Suksawat", email: "somchai@example.com", role: "Customer" },
-        { id: 2, name: "Prasert Boonyarit", email: "prasert@example.com", role: "Photographer" },
-        { id: 3, name: "Siriporn Meechai", email: "siriporn@example.com", role: "Admin" },
-      ],
+      users: [],
       searchQuery: "",
       filterRole: "All",
       currentPage: 1,
       itemsPerPage: 5,
       selectedUser: null, // For view modal
-      editingUser: null, // For edit modal
-      deletingUser: null,
+      editingUser: null,  // For edit modal
+      deletingUser: null, // For delete modal
     };
   },
   computed: {
@@ -147,28 +144,79 @@ export default {
     },
   },
   methods: {
-    viewUser(user) {
-      this.selectedUser = user;
-    },
-    editUser(user) {
-      this.editingUser = { ...user }; // Create a copy of the user to edit
-    },
-    saveUserEdit() {
-      const index = this.users.findIndex(u => u.id === this.editingUser.id);
-      if (index !== -1) {
-        this.users.splice(index, 1, this.editingUser);
-      }
-      this.closeEditModal();
-    },
-    deleteUser(id) {
-      console.log("Delete user", id);
+    fetchUsers() {
+      axios.get("http://localhost:8080/api/users")
+        .then(response => {
+          // Map backend response to include an 'id' property and force role to upper case.
+          this.users = response.data.map(user => ({
+            id: user.id || user.userId, // Use 'userId' if 'id' is not available.
+            name: user.name,
+            email: user.email,
+            role: user.role ? user.role.toUpperCase() : ""
+          }));
+        })
+        .catch(error => {
+          console.error("Error fetching users:", error);
+          alert("Failed to fetch users from backend.");
+        });
     },
     searchUsers() {
       this.currentPage = 1;
+      // Local filtering is handled in computed property.
     },
     filterUsers(role) {
       this.filterRole = role;
       this.currentPage = 1;
+    },
+    viewUser(user) {
+      this.selectedUser = user;
+    },
+    editUser(user) {
+      // Create a shallow copy of the user to edit and force the role to uppercase.
+      this.editingUser = { ...user, role: user.role.toUpperCase() };
+    },
+    saveUserEdit() {
+      axios.put(`http://localhost:8080/api/users/${this.editingUser.id}`, this.editingUser)
+        .then(response => {
+          const index = this.users.findIndex(u => u.id === this.editingUser.id);
+          if (index !== -1) {
+            this.users.splice(index, 1, {
+              ...response.data,
+              // Ensure role is in uppercase
+              role: response.data.role ? response.data.role.toUpperCase() : ""
+            });
+          }
+          this.closeEditModal();
+          alert("User updated successfully.");
+        })
+        .catch(error => {
+          console.error("Error updating user:", error);
+          alert("Failed to update user.");
+        });
+    },
+    openDeleteModal(user) {
+      this.deletingUser = user;
+    },
+    closeModal() {
+      this.selectedUser = null;
+    },
+    closeEditModal() {
+      this.editingUser = null;
+    },
+    closeDeleteModal() {
+      this.deletingUser = null;
+    },
+    confirmDelete() {
+      axios.delete(`http://localhost:8080/api/users/${this.deletingUser.id}`)
+        .then(() => {
+          alert(`User "${this.deletingUser.name}" has been deleted.`);
+          this.users = this.users.filter(u => u.id !== this.deletingUser.id);
+          this.deletingUser = null;
+        })
+        .catch(error => {
+          console.error("Error deleting user:", error);
+          alert("Failed to delete user.");
+        });
     },
     prevPage() {
       if (this.currentPage > 1) {
@@ -180,24 +228,12 @@ export default {
         this.currentPage++;
       }
     },
-    closeModal() {
-      this.selectedUser = null;
+    goToPage(page) {
+      this.currentPage = page;
     },
-    closeEditModal() {
-      this.editingUser = null;
-    },
-    openDeleteModal(user) {
-      this.deletingUser = user; // Simulate the deletion process
-    },
-    closeDeleteModal() {
-      this.deletingUser = null; // Close the modal without action
-    },
-    confirmDelete() {
-      // Simulate deletion (demo)
-      console.log(`User to be deleted: ${this.deletingUser.name}`);
-      alert(`Demo: User "${this.deletingUser.name}" will be deleted.`);
-      this.deletingUser = null; // Close the modal after confirmation
-    },
+  },
+  mounted() {
+    this.fetchUsers();
   },
 };
 </script>
@@ -233,10 +269,6 @@ td {
   border: 1px solid #ddd;
 }
 
-td button {
-  margin: 3%;
-}
-
 th {
   background-color: #f4f4f4;
 }
@@ -259,7 +291,9 @@ th {
   margin-top: 20px;
 }
 
-.modal-overlay {
+.modal-overlay,
+.edit-modal-overlay,
+.delete-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -272,7 +306,9 @@ th {
   z-index: 1000;
 }
 
-.modal-content {
+.modal-content,
+.edit-modal-content,
+.delete-modal-content {
   background: white;
   padding: 20px;
   border-radius: 8px;
@@ -280,63 +316,11 @@ th {
   text-align: center;
 }
 
-.modal-content form div {
-  margin-bottom: 15px;
-  /* Add spacing between each field */
-  display: inline;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.modal-content form label {
-  margin-bottom: 5px;
-  /* Add space between label and input */
-  font-weight: bold;
-}
-
-.modal-content button {
-  padding: 10px 20px;
-  border: none;
-  background: #007bff;
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.modal-content form input,
-.modal-content form select {
-  width: 95%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-
-/* Overlay */
-.edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-/* Modal Content */
 .edit-modal-content {
-  background: #fff;
-  padding: 30px;
-  border-radius: 10px;
   width: 450px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   text-align: left;
 }
 
-/* Form Group */
 .edit-form-group {
   display: flex;
   flex-direction: row;
@@ -344,7 +328,6 @@ th {
   margin-bottom: 15px;
 }
 
-/* Label */
 .edit-label {
   flex: 1;
   text-align: right;
@@ -353,7 +336,6 @@ th {
   color: #333;
 }
 
-/* Input */
 .edit-input {
   flex: 2;
   padding: 10px;
@@ -362,7 +344,6 @@ th {
   width: 100%;
 }
 
-/* Select Dropdown */
 .edit-select {
   flex: 2;
   padding: 10px;
@@ -371,7 +352,6 @@ th {
   width: 100%;
 }
 
-/* Buttons */
 .edit-modal-buttons {
   display: flex;
   justify-content: center;
@@ -379,54 +359,18 @@ th {
   margin-top: 20px;
 }
 
-/* Overlay */
-.delete-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-/* Modal Content */
-.delete-modal-content {
-  background: #fff;
-  padding: 25px;
-  border-radius: 10px;
-  width: 400px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  text-align: center;
-}
-
-/* Modal Title */
 .delete-title {
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-/* Modal Buttons */
 .delete-modal-buttons {
   display: flex;
   justify-content: center;
   gap: 15px;
   margin-top: 20px;
 }
-
-.btn-confirm {
-  background-color: #4bb40e;
-  color: white;
-}
-
-.btn-confirm:hover {
-  background-color: #23dd19;
-}
-
 
 .btn {
   padding: 10px 20px;
@@ -452,6 +396,15 @@ th {
 
 .btn-cancel:hover {
   background-color: #c82333;
+}
+
+.btn-confirm {
+  background-color: #4bb40e;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background-color: #23dd19;
 }
 
 p {

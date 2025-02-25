@@ -31,18 +31,18 @@
                     <th>Photographer Name</th>
                     <th>Email</th>
                     <th>Speciality</th>
-                    <th>Available</th>
+                    <th>Available Locations</th>
                     <th>Categories</th>
                     <th>Rating</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="photographer in paginatedPhotographers" :key="photographer.id">
+                <tr v-for="photographer in paginatedPhotographers" :key="photographer.photographerId">
                     <td>{{ photographer.name }}</td>
                     <td>{{ photographer.email }}</td>
                     <td>{{ photographer.speciality }}</td>
-                    <td>{{ photographer.available }}</td>
+                    <td>{{ photographer.availableLocations.join(", ") }}</td>
                     <td>{{ photographer.categories.join(", ") }}</td>
                     <td>{{ photographer.rating }}</td>
                     <td>
@@ -55,12 +55,12 @@
 
         <!-- Pagination -->
         <div class="pagination">
-            <button @click="prevPage" :disabled="currentPage === 1" :class="{ disabled: currentPage === 1 }">Prev</button>
+            <button @click="prevPage" :disabled="currentPage === 1">Prev</button>
             <button v-for="page in totalPages" :key="page" :class="{ active: currentPage === page }"
                 @click="goToPage(page)">
                 {{ page }}
             </button>
-            <button @click="nextPage" :disabled="currentPage === totalPages" :class="{ disabled: currentPage === totalPages }">Next</button>
+            <button @click="nextPage" :disabled="currentPage === totalPages">Next</button>
         </div>
 
         <!-- View Photographer Modal -->
@@ -71,7 +71,7 @@
                     <li><strong>Name:</strong> {{ selectedPhotographer.name }}</li>
                     <li><strong>Email:</strong> {{ selectedPhotographer.email }}</li>
                     <li><strong>Speciality:</strong> {{ selectedPhotographer.speciality }}</li>
-                    <li><strong>Available:</strong> {{ selectedPhotographer.available }}</li>
+                    <li><strong>Available:</strong> {{ selectedPhotographer.availableLocations.join(", ") }}</li>
                     <li><strong>Categories:</strong> {{ selectedPhotographer.categories.join(", ") }}</li>
                     <li><strong>Rating:</strong> {{ selectedPhotographer.rating }}</li>
                 </ul>
@@ -92,20 +92,19 @@
                 </div>
                 <div class="form-group">
                     <label for="eventLocation">Event Location:</label>
-                    <select v-model="bookingDetails.location" id="eventLocation" class="book-dropdown">
-                        <option v-for="location in selectedPhotographer.available.split(', ')" :key="location" :value="location">{{ location }}</option>
+                    <select v-model="bookingDetails.location" class="book-dropdown">
+                        <option v-for="location in selectedPhotographer.availableLocations" :key="location"
+                            :value="location">
+                            {{ location }}
+                        </option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="speciality">Speciality:</label>
-                    <select v-model="bookingDetails.speciality" id="speciality" class="book-dropdown">
-                        <option v-for="spec in [selectedPhotographer.speciality]" :key="spec" :value="spec">{{ spec }}</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="category">Category:</label>
-                    <select v-model="bookingDetails.category" id="category" class="book-dropdown">
-                        <option v-for="cat in selectedPhotographer.categories" :key="cat" :value="cat">{{ cat }}</option>
+                    <label for="eventCategory">Event Category:</label>
+                    <select v-model="bookingDetails.category" class="book-dropdown">
+                        <option v-for="cat in selectedPhotographer.categories" :key="cat" :value="cat">
+                            {{ cat }}
+                        </option>
                     </select>
                 </div>
                 <div class="modal-buttons">
@@ -115,60 +114,31 @@
             </div>
         </div>
     </div>
+
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
     data() {
         return {
-            photographers: [
-                {
-                    id: 1,
-                    name: "Somchai Suksawat",
-                    email: "somchai@example.com",
-                    speciality: "Photography",
-                    available: "Bangkok, SamutPrakarn",
-                    categories: ["Wedding", "Portrait"],
-                    rating: 4.5,
-                },
-                {
-                    id: 2,
-                    name: "Prasert Boonyarit",
-                    email: "prasert@example.com",
-                    speciality: "Videography",
-                    available: "ChonBuri, Pattaya",
-                    categories: ["Family Photo"],
-                    rating: 4.8,
-                },
-                // Add more photographers here
-            ],
-            filters: {
-                available: "",
-                speciality: "",
-                category: "",
-            },
+            photographers: [],
+            filters: { available: "", speciality: "", category: "" },
             currentPage: 1,
             itemsPerPage: 5,
             selectedPhotographer: null,
-            bookingModal: false, // Used for Book Modal
-            bookingDetails: {
-                date: "",
-                location: "",
-                speciality: "",
-                category: "",
-            },
+            bookingModal: false,
+            bookingDetails: { date: "", location: "", category: "" }, // Add category here
         };
     },
     computed: {
         filteredPhotographers() {
             return this.photographers.filter((photographer) => {
                 return (
-                    (!this.filters.available ||
-                        photographer.available === this.filters.available) &&
-                    (!this.filters.speciality ||
-                        photographer.speciality === this.filters.speciality) &&
-                    (!this.filters.category ||
-                        photographer.categories.includes(this.filters.category))
+                    (!this.filters.available || photographer.availableLocations.includes(this.filters.available)) &&
+                    (!this.filters.speciality || photographer.speciality === this.filters.speciality) &&
+                    (!this.filters.category || photographer.categories.includes(this.filters.category))
                 );
             });
         },
@@ -182,12 +152,57 @@ export default {
         },
     },
     methods: {
+        async fetchPhotographers() {
+            try {
+                const response = await axios.get("http://localhost:8080/api/photographers");
+                // Map the response so that availableToWorkIn becomes availableLocations and category becomes categories (array)
+                this.photographers = response.data.map(photographer => ({
+                    ...photographer,
+                    availableLocations: photographer.availableToWorkIn || [],
+                    categories: Array.isArray(photographer.category)
+                        ? photographer.category
+                        : photographer.category.split(", ")
+                }));
+                console.log("Fetched photographers:", this.photographers);
+            } catch (error) {
+                console.error("Error fetching photographers:", error);
+            }
+        },
         filterResults() {
             this.currentPage = 1;
         },
         viewPhotographer(photographer) {
             this.selectedPhotographer = photographer;
         },
+        bookPhotographer(photographer) {
+            this.selectedPhotographer = photographer;
+            // Pre-select the first available location and first category
+            this.bookingDetails.location = photographer.availableLocations[0] || "";
+            this.bookingDetails.category = photographer.categories[0] || "";
+            this.bookingModal = true;
+        },
+        async confirmBooking() {
+            try {
+                const payload = {
+                    customerId: localStorage.getItem("userId"),
+                    photographerId: this.selectedPhotographer.photographerId,
+                    eventDate: this.bookingDetails.date,          // Should be in YYYY-MM-DD format
+                    eventLocation: this.bookingDetails.location,
+                    bookingStatus: "Pending",
+                    speciality: this.selectedPhotographer.speciality, // Taken from photographer
+                    category: this.bookingDetails.category             // Ensure this is not null
+                };
+                console.log("Booking Payload:", payload);
+                await axios.post("http://localhost:8080/api/bookings", payload);
+                alert("Booking confirmed!");
+                this.closeModals();
+            } catch (error) {
+                
+                console.error("Error booking photographer:", error);
+                alert("Failed to create booking.");
+            }
+        },
+
         prevPage() {
             if (this.currentPage > 1) this.currentPage--;
         },
@@ -201,17 +216,9 @@ export default {
             this.selectedPhotographer = null;
             this.bookingModal = false;
         },
-        confirmBooking() {
-            alert(`Booking confirmed for ${this.selectedPhotographer.name} on ${this.bookingDetails.date}`);
-            this.closeModals();
-        },
-
-        bookPhotographer(photographer) {
-            this.selectedPhotographer = photographer;
-            this.bookingDetails.speciality = photographer.speciality || "";
-            this.bookingDetails.category = photographer.categories[0] || "";
-            this.bookingModal = true;
-        },
+    },
+    mounted() {
+        this.fetchPhotographers();
     },
 };
 </script>
@@ -244,13 +251,11 @@ export default {
     flex-direction: column;
     align-items: flex-start;
     margin-bottom: 15px;
-    /* Add space between form elements */
 }
 
 .form-group label {
     font-weight: bold;
     margin-bottom: 5px;
-    /* Space between label and input */
 }
 
 .dropdown {
@@ -330,15 +335,12 @@ export default {
     padding: 0;
     margin: 0;
     text-align: left;
-    /* Align the list items to the left */
 }
 
 .details-list li {
     margin-bottom: 10px;
-    /* Add spacing between list items */
 }
 
-/* Style buttons with horizontal alignment and spacing */
 .modal-buttons {
     display: flex;
     justify-content: space-between;

@@ -1,95 +1,135 @@
 <template>
     <div class="profile-page">
-        <h1>Profile</h1>
-
-        <!-- Display Profile Information -->
-        <div class="profile-info">
-            <h2>Photographer Information</h2>
-            <ul>
-                <li><strong>Name:</strong> {{ profile.name }}</li>
-                <li><strong>Email:</strong> {{ profile.email }}</li>
-                <li><strong>Available to work in:</strong> {{ profile.available }}</li>
-                <li><strong>Rating:</strong> {{ profile.rating }}</li>
-                <li><strong>Speciality:</strong> {{ profile.speciality }}</li>
-                <li><strong>Category:</strong> {{ profile.category }}</li>
-                <li><strong>Portfolio:</strong> <a :href="profile.portfolio" target="_blank">{{ profile.portfolio }}</a></li>
-            </ul>
-            <button @click="openModal" class="edit-btn">Edit Profile</button>
-        </div>
-
-        <!-- Edit Profile Modal -->
-        <div v-if="showModal" class="modal-overlay" @click="closeModal">
-            <div class="modal-content" @click.stop>
-                <h2>Edit Profile</h2>
-                <form @submit.prevent="updateProfile">
-                    <div class="form-group">
-                        <label for="name">Name:</label>
-                        <input type="text" id="name" v-model="editProfile.name" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email:</label>
-                        <input type="email" id="email" v-model="editProfile.email" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="available">Available to work in:</label>
-                        <input type="text" id="available" v-model="editProfile.available" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="speciality">Speciality:</label>
-                        <input type="text" id="speciality" v-model="editProfile.speciality" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="category">Category:</label>
-                        <input type="text" id="category" v-model="editProfile.category" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="portfolio">Portfolio URL:</label>
-                        <input type="url" id="portfolio" v-model="editProfile.portfolio" required />
-                    </div>
-                    <div class="modal-buttons">
-                        <button type="submit" class="update-btn">Save Changes</button>
-                        <button type="button" class="cancel-btn" @click="closeModal">Cancel</button>
-                    </div>
-                </form>
+      <h1>Profile</h1>
+      <!-- Display Profile Information -->
+      <div class="profile-info">
+        <h2>Photographer Information</h2>
+        <ul>
+          <li><strong>Name:</strong> {{ profile.name }}</li>
+          <li><strong>Email:</strong> {{ profile.email }}</li>
+          <li><strong>Available to work in:</strong> {{ profile.availableToWorkIn }}</li>
+          <li><strong>Rating:</strong> {{ profile.rating }}</li>
+          <li><strong>Speciality:</strong> {{ profile.speciality }}</li>
+          <li><strong>Category:</strong> {{ profile.category }}</li>
+          <li>
+            <strong>Portfolio:</strong>
+            <a :href="profile.portfolio" target="_blank">{{ profile.portfolio }}</a>
+          </li>
+        </ul>
+        <button @click="openModal" class="edit-btn">Edit Profile</button>
+      </div>
+  
+      <!-- Edit Profile Modal -->
+      <div v-if="showModal" class="modal-overlay" @click="closeModal">
+        <div class="modal-content" @click.stop>
+          <h2>Edit Profile</h2>
+          <form @submit.prevent="updateProfile">
+            <div class="form-group">
+              <label for="name">Name:</label>
+              <input type="text" id="name" v-model="editProfile.name" required />
             </div>
+            <div class="form-group">
+              <label for="email">Email:</label>
+              <input type="email" id="email" v-model="editProfile.email" required />
+            </div>
+            <div class="form-group">
+              <label for="availableToWorkIn">Available to work in:</label>
+              <input
+                type="text"
+                id="availableToWorkIn"
+                v-model="editProfile.availableToWorkIn"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="speciality">Speciality:</label>
+              <input type="text" id="speciality" v-model="editProfile.speciality" required />
+            </div>
+            <div class="form-group">
+              <label for="category">Category:</label>
+              <input type="text" id="category" v-model="editProfile.category" required />
+            </div>
+            <div class="form-group">
+              <label for="portfolio">Portfolio URL:</label>
+              <input type="url" id="portfolio" v-model="editProfile.portfolio" required />
+            </div>
+            <div class="modal-buttons">
+              <button type="submit" class="update-btn">Save Changes</button>
+              <button type="button" class="cancel-btn" @click="closeModal">Cancel</button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
-</template>
-
-<script>
-export default {
+  </template>
+  
+  <script>
+  import axios from "axios";
+  
+  export default {
     name: "ProfilePage",
     data() {
-        return {
-            profile: {
-                name: "John Doe",
-                email: "john.doe@example.com",
-                available: "Bangkok, Chiang Mai",
-                rating: 4.8,
-                speciality: "Photography",
-                category: "Wedding, Portrait",
-                portfolio: "https://portfolio.example.com",
-            },
-            editProfile: {},
-            showModal: false,
-        };
+      return {
+        profile: {
+          name: "",
+          email: "",
+          availableToWorkIn: "",
+          rating: 0,
+          speciality: "",
+          category: "",
+          portfolio: "",
+        },
+        editProfile: {},
+        showModal: false,
+      };
+    },
+    async mounted() {
+      // 1. Get userId from localStorage
+      const userId = localStorage.getItem("userId");
+      const userRole = localStorage.getItem("userRole");
+  
+      // 2. If no userId or role is found, redirect to login (or handle error)
+      if (!userId || userRole !== "PHOTOGRAPHER") {
+        this.$router.push("/"); // or your login route
+        return;
+      }
+  
+      // 3. Fetch the photographer profile from your backend
+      //    Suppose your endpoint is GET /api/photographers/:id
+      try {
+        const response = await axios.get(`http://localhost:8080/api/photographers/${userId}`);
+        this.profile = response.data; // Assign the fetched data to profile
+      } catch (error) {
+        console.error("Failed to fetch photographer profile:", error);
+        // handle error (e.g., show a message, redirect, etc.)
+      }
     },
     methods: {
-        openModal() {
-            this.editProfile = { ...this.profile };
-            this.showModal = true;
-        },
-        closeModal() {
-            this.showModal = false;
-        },
-        updateProfile() {
-            this.profile = { ...this.editProfile };
-            this.showModal = false;
-            alert("Profile updated successfully!");
-        },
+      openModal() {
+        this.editProfile = { ...this.profile };
+        this.showModal = true;
+      },
+      closeModal() {
+        this.showModal = false;
+      },
+      async updateProfile() {
+        try {
+          // 1. PUT request to update the photographer's info
+          //    Suppose your endpoint is PUT /api/photographers/:id
+          const userId = localStorage.getItem("userId");
+          const response = await axios.put(`http://localhost:8080/api/photographers/${userId}`, this.editProfile);
+          // 2. Update local profile with response data
+          this.profile = response.data;
+          this.showModal = false;
+          alert("Profile updated successfully!");
+        } catch (error) {
+          console.error("Failed to update profile:", error);
+          alert("An error occurred while updating profile.");
+        }
+      },
     },
-};
-</script>
+  };
+  </script>
 
 <style scoped>
 .profile-page {

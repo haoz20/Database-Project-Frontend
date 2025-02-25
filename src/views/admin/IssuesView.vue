@@ -1,6 +1,5 @@
 <template>
     <div class="issues-view">
-
         <!-- Main Content -->
         <main class="main-content">
             <!-- Search Bar -->
@@ -50,6 +49,8 @@
             </div>
         </main>
     </div>
+
+    <!-- Issue Modal -->
     <div v-if="selectedIssue" class="issue-modal-overlay" @click="closeIssueModal">
         <div class="issue-modal-content" @click.stop>
             <header class="modal-header">
@@ -102,7 +103,6 @@
                         <label for="solvedCheckbox">Solved the issue</label>
                     </div>
                 </div>
-
             </div>
 
             <!-- Footer: Buttons -->
@@ -115,29 +115,12 @@
 </template>
 
 <script>
+import axios from "axios";
 export default {
     name: "IssuesView",
     data() {
         return {
-            issues: [
-                {
-                    id: "I1001",
-                    customer: "Somchai Suksawat",
-                    email: "somchai.suksawat@example.com",
-                    type: "Service",
-                    status: "New",
-                    date: "2024/11/23",
-                    description: "The issue involves a delay in service delivery. Please address it as soon as possible.",
-                },
-                {
-                    id: "I1002",
-                    customer: "Prasert Boonyarit",
-                    email: "prasert.b@example.com",
-                    type: "Payment",
-                    status: "In Progress",
-                    date: "2024/10/21",
-                },
-            ],
+            issues: [],
             searchQuery: "",
             currentPage: 1,
             itemsPerPage: 5,
@@ -152,15 +135,13 @@ export default {
     computed: {
         filteredIssues() {
             let result = this.issues;
-
             if (this.searchQuery) {
                 result = result.filter((issue) =>
-                    issue.id.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                    issue.id.toString().toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                     issue.customer.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
                     issue.email.toLowerCase().includes(this.searchQuery.toLowerCase())
                 );
             }
-
             if (this.filters.status) {
                 result = result.filter((issue) => issue.status === this.filters.status);
             }
@@ -170,7 +151,6 @@ export default {
             if (this.filters.date) {
                 result = result.filter((issue) => issue.date === this.filters.date);
             }
-
             return result;
         },
         paginatedIssues() {
@@ -183,41 +163,80 @@ export default {
         },
     },
     methods: {
+        fetchIssues() {
+            return axios.get("http://localhost:8080/api/issues")
+                .then((response) => {
+                    // Map IssueDTO to a local issue object using the provided customerName and customerEmail fields.
+                    this.issues = response.data.map((issue) => ({
+                        id: issue.issueId,
+                        customer: issue.customerName || ("Customer #" + issue.reportedBy),
+                        email: issue.customerEmail || "N/A",
+                        type: issue.issueType,
+                        status: issue.issueStatus,
+                        date: issue.reportedAt ? issue.reportedAt : "N/A",
+                        description: issue.description,
+                        solved: false,
+                    }));
+                });
+        },
         filterBy(filterType) {
             this.filters[filterType] = prompt(`Enter ${filterType} to filter by:`);
         },
         clearFilters() {
-            this.filters = {
-                status: null,
-                type: null,
-                date: null,
-            };
+            this.filters = { status: null, type: null, date: null };
         },
         prevPage() {
-            if (this.currentPage > 1) {
-                this.currentPage--;
-            }
+            if (this.currentPage > 1) this.currentPage--;
         },
         nextPage() {
-            if (this.currentPage < this.totalPages) {
-                this.currentPage++;
-            }
+            if (this.currentPage < this.totalPages) this.currentPage++;
         },
         goToPage(page) {
             this.currentPage = page;
         },
         viewIssue(issue) {
-            this.selectedIssue = issue; // Set the selected issue
+            this.selectedIssue = issue;
         },
         closeIssueModal() {
             this.selectedIssue = null;
+        },
+        saveChanges() {
+            const payload = {
+                // Map the locally bound status (from the dropdown) to issueStatus.
+                issueStatus: this.selectedIssue.status,
+                // Optionally, include other fields that you want to update:
+                // resolutionDetail: this.selectedIssue.resolutionDetail,
+                // resolutionDate: this.selectedIssue.resolutionDate,
+            };
+            axios
+                .put(`http://localhost:8080/api/issues/${this.selectedIssue.id}`, payload)
+                .then(() => {
+                    alert("Issue updated successfully.");
+                    this.closeIssueModal();
+                })
+                .catch((error) => {
+                    console.error("Error updating issue:", error);
+                    alert("Failed to update issue.");
+                });
         }
+        ,
+        fetchData() {
+            // Now we only need to fetch issues since customer details are included in each IssueDTO.
+            this.fetchIssues().catch(error => {
+                console.error("Error fetching issues:", error);
+                alert("Failed to fetch issues.");
+            });
+        }
+    },
+    mounted() {
+        this.fetchData();
     },
 };
 </script>
 
+
 <style scoped>
-/* General Table Styling */
+/* (Your existing styles remain unchanged) */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -398,7 +417,6 @@ th {
     text-align: left;
     font-weight: bold;
     width: 150px;
-    /* Fixed width for alignment */
 }
 
 .detail-value {
@@ -406,7 +424,7 @@ th {
     text-align: left;
 }
 
-
+/* Status Dropdown */
 .status-dropdown {
     width: auto;
     padding: 5px;
@@ -414,11 +432,11 @@ th {
     border-radius: 4px;
 }
 
+/* Description Section */
 .description-section {
     flex: 1;
 }
 
-/* Non-editable text area */
 .description-textarea.non-editable {
     width: auto;
     min-height: 100px;
@@ -428,14 +446,11 @@ th {
     background-color: #f9f9f9;
     color: #333;
     white-space: pre-wrap;
-    /* Preserve line breaks */
     overflow-y: auto;
-    /* Add scroll if content overflows */
     cursor: not-allowed;
-    /* Indicate non-editable field */
 }
 
-
+/* Reply Button */
 .reply-btn {
     margin-top: 10px;
     padding: 8px 16px;
@@ -450,7 +465,7 @@ th {
     margin-top: 10px;
 }
 
-/* Footer */
+/* Modal Footer */
 .modal-footer {
     display: flex;
     justify-content: space-between;

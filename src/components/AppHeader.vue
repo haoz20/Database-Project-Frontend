@@ -1,6 +1,8 @@
 <template>
   <header class="header">
-    <h1 class="title">Studiosphere</h1>
+    <router-link to="/" class="title-link">
+      <h1 class="title">Studiosphere</h1>
+    </router-link>
     <button class="user-icon">
       <i class="bi bi-person-circle"></i>
     </button>
@@ -45,5 +47,14 @@ export default {
   color: #000; /* Icon color */
   margin: 0; /* Remove any default margin */
   padding: 0; /* Remove any default padding */
+}
+
+.title-link {
+  text-decoration: none; /* Remove underline */
+  color: inherit;        /* Inherit text color */
+}
+
+.title-link:hover {
+  opacity: 0.8; /* Optional hover effect */
 }
 </style>

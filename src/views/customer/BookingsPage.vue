@@ -77,17 +77,13 @@
 </template>
 
 <script>
+import axios from "axios";
+import CustomerPage from "./CustomerPage.vue";
 export default {
     name: "BookingsPage",
     data() {
         return {
-            bookings: [
-                { id: "B1001", photographer: "Somchai Suksawat", date: "2025-02-15", location: "Bangkok", speciality: "Photography", category: "Wedding", status: "Pending" },
-                { id: "B1002", photographer: "Prasert Boonyarit", date: "2025-03-01", location: "Pattaya", speciality: "Videography", category: "Portrait", status: "Booked" },
-                { id: "B1003", photographer: "Anan Boonmak", date: "2025-02-20", location: "Chiang Mai", speciality: "Photography", category: "Family Photo", status: "Cancelled" },
-                { id: "B1004", photographer: "Nopparat Meesuk", date: "2025-04-05", location: "Phuket", speciality: "Photography", category: "Wedding", status: "Pending" },
-                { id: "B1005", photographer: "Jaruwan Inthanon", date: "2025-04-10", location: "Hua Hin", speciality: "Videography", category: "Portrait", status: "Booked" }
-            ],
+            bookings: [],
             currentPage: 1,
             itemsPerPage: 3,
             showRateModal: false,
@@ -109,10 +105,19 @@ export default {
     methods: {
         cancelBooking(booking) {
             if (confirm(`Are you sure you want to cancel booking ID: ${booking.id}?`)) {
-                booking.status = "Cancelled";
-                alert(`Booking ID: ${booking.id} has been cancelled.`);
+                axios
+                    .put(`http://localhost:8080/api/bookings/${booking.id}/cancel?photographerId=${booking.photographerId}`)
+                    .then((response) => {
+                        booking.status = response.data.bookingStatus;
+                        alert(`Booking ID: ${booking.id} has been cancelled.`);
+                    })
+                    .catch((error) => {
+                        console.error("Error cancelling booking:", error);
+                        alert("Failed to cancel booking.");
+                    });
             }
         },
+
         openRateModal(booking) {
             this.selectedBooking = booking;
             this.showRateModal = true;
@@ -127,8 +132,22 @@ export default {
                 alert("Please select a rating.");
                 return;
             }
-            alert(`Thank you for rating booking ID: ${this.selectedBooking.id} with ${this.rating} stars.`);
-            this.closeRateModal();
+            // Call the backend rating endpoint. (Ensure you have implemented this on the backend.)
+            axios
+                .post("http://localhost:8080/api/reviews", {
+                    bookingId: this.selectedBooking.id,
+                    customerId: localStorage.getItem("userId"),
+                    rate: this.rating,
+                    feedback: this.feedback,
+                })
+                .then(() => {
+                    alert(`Thank you for rating booking ID: ${this.selectedBooking.id} with ${this.rating} stars.`);
+                    this.closeRateModal();
+                })
+                .catch((error) => {
+                    console.error("Error submitting rating:", error);
+                    alert("Failed to submit rating.");
+                });
         },
         prevPage() {
             if (this.currentPage > 1) this.currentPage--;
@@ -139,6 +158,25 @@ export default {
         goToPage(page) {
             this.currentPage = page;
         },
+    },
+    mounted() {
+        // Fetch bookings for the customer and map the DTO fields to the local properties.
+        axios.get("http://localhost:8080/api/bookings/customer/" + localStorage.getItem("userId"))
+            .then(response => {
+                this.bookings = response.data.map(booking => ({
+                    id: booking.bookingId,
+                    // Now we have a dedicated field for photographerName:
+                    photographer: booking.photographerName,
+                    photographerId: booking.photographerId,
+                    date: booking.eventDate,
+                    location: booking.eventLocation,
+                    speciality: booking.speciality,
+                    category: booking.category,
+                    status: booking.bookingStatus
+                }));
+            })
+            .catch(error => console.error("Error fetching bookings:", error));
+
     },
 };
 </script>

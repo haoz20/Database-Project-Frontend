@@ -21,15 +21,12 @@
           class="input-field"
           required
         />
-        <button
-          type="button"
-          class="show-password"
-          @click="togglePasswordVisibility"
-        >
+        <button type="button" class="show-password" @click="togglePasswordVisibility">
           {{ showPassword ? "Hide" : "Show" }}
         </button>
       </div>
       <button type="submit" class="btn">Sign in</button>
+      <p v-if="errorMessage" style="color:red">{{ errorMessage }}</p>
     </form>
     <div class="signup-link">
       <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
@@ -38,6 +35,8 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: "LoginForm",
   data() {
@@ -45,27 +44,50 @@ export default {
       username: "",
       password: "",
       showPassword: false,
+      errorMessage: ""
     };
   },
   methods: {
-    handleLogin() {
-      const staticUsername = "admin";
-      const staticPassword = "password123";
-
-      if (
-        this.username === staticUsername &&
-        this.password === staticPassword
-      ) {
-        localStorage.setItem("userRole", "admin"); // Store role for further use
-        this.$router.push("/roles"); // Redirect to RolesView
-      } else {
-        this.errorMessage = "Invalid username or password.";
+    async handleLogin() {
+      try {
+        // Fetch all users from the backend
+        const response = await axios.get('http://localhost:8080/api/users');
+        const users = response.data;
+        
+        // Find the user by matching username/email and password.
+        // Note: This assumes your User object contains a "password" field (not recommended for production).
+        const foundUser = users.find(user =>
+          (user.email === this.username || user.name === this.username) &&
+          user.password === this.password
+        );
+        
+        if (foundUser) {
+          // Store the user's role in localStorage for role-based redirection
+          localStorage.setItem("userRole", foundUser.role);
+          localStorage.setItem("userId", foundUser.userId);
+          
+          // Redirect based on role
+          if (foundUser.role === "ADMIN") {
+            this.$router.push("/admin");
+          } else if (foundUser.role === "PHOTOGRAPHER") {
+            this.$router.push("/photographer");
+          } else if (foundUser.role === "CUSTOMER") {
+            this.$router.push("/customer");
+          } else {
+            this.$router.push("/home");
+          }
+        } else {
+          this.errorMessage = "Invalid username or password.";
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        this.errorMessage = "An error occurred during login.";
       }
     },
     togglePasswordVisibility() {
       this.showPassword = !this.showPassword;
-    },
-  },
+    }
+  }
 };
 </script>
 
